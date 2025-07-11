@@ -3,7 +3,7 @@ import threading
 import time
 import paramiko
 import subprocess
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, url_for
 import json
 import gemini_recognizer
 import speckle_recognizer
@@ -108,7 +108,8 @@ def index():
         speckle_dir=SPECKLE_IMAGE_DIR,
         raspberry_dir=RASPBERRY_IMAGE_DIR,
         default_ip=RASPBERRY_DEFAULT_IP,
-        default_user=RASPBERRY_DEFAULT_USER
+        default_user=RASPBERRY_DEFAULT_USER,
+        collect_url=url_for('collect_speckle_page')
     )
 
 @app.route('/check_raspberry', methods=['POST'])
@@ -168,6 +169,60 @@ def upload_script():
     password = data['password']
     ok, msg = upload_script_to_raspberry(ip, username, password)
     return jsonify({'success': ok, 'msg': msg})
+
+@app.route('/collect_speckle', methods=['GET'])
+def collect_speckle_page():
+    return render_template('collect_speckle.html',
+        default_ip=RASPBERRY_DEFAULT_IP,
+        default_user=RASPBERRY_DEFAULT_USER
+    )
+
+@app.route('/collect_speckle', methods=['POST'])
+def collect_speckle():
+    data = request.json
+    subdir = data.get('subdir', '').strip()
+    if not subdir:
+        return jsonify({'success': False, 'msg': '子目录名称不能为空'})
+    # 1. 在PC端创建子目录
+    pc_subdir = os.path.join(SPECKLE_IMAGE_DIR, subdir)
+    os.makedirs(pc_subdir, exist_ok=True)
+    # 2. 在树莓派端创建同名目录并采集图片
+    # 这里只采集一张图片为例，可扩展为多张
+    ip = RASPBERRY_DEFAULT_IP
+    username = RASPBERRY_DEFAULT_USER
+    password = data.get('password', '')  # 可扩展为前端输入
+    remote_subdir = f'{HOME_DIR}/speckle/{subdir}'
+    # 创建目录+采集
+    try:
+        import paramiko
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, username=username, password=password, timeout=5)
+        # 创建目录
+        ssh.exec_command(f'mkdir -p {remote_subdir}')
+        # 拍照
+        import time
+        fname = f'speckle_{int(time.time())}.jpg'
+        cmd = f'cd {os.path.dirname(RASPBERRY_CAPTURE_SCRIPT)} && source venv/bin/activate && python3 {RASPBERRY_CAPTURE_SCRIPT} {subdir}/{fname}'
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        exit_status = stdout.channel.recv_exit_status()
+        out = stdout.read().decode()
+        err = stderr.read().decode()
+        ssh.close()
+        # 拉取图片到本地子目录
+        from scp import SCPClient
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, username=username, password=password, timeout=5)
+        with SCPClient(ssh.get_transport()) as scp:
+            scp.get(f'{remote_subdir}/{fname}', os.path.join(pc_subdir, fname))
+        ssh.close()
+        if exit_status == 0:
+            return jsonify({'success': True, 'msg': f'采集完成，图片已保存到{subdir}。\n{out}'})
+        else:
+            return jsonify({'success': False, 'msg': f'采集失败(exit {exit_status}):\n{out}\n{err}'})
+    except Exception as e:
+        return jsonify({'success': False, 'msg': f'采集失败: {e}'})
 
 if __name__ == '__main__':
     os.makedirs(GEMINI_IMAGE_DIR, exist_ok=True)
