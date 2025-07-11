@@ -34,6 +34,15 @@
           />
         </div>
         <div class="mb-2">
+          <button
+            id="test_gemini_btn"
+            class="px-3 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 w-32"
+          >
+            测试Gemini
+          </button>
+          <div id="gemini_status" class="mt-2 text-sm"></div>
+        </div>
+        <div class="mb-2">
           <label class="font-medium">树莓派图片目录（散斑图片）:</label>
           <span class="ml-2 text-gray-700">{{ raspberry_dir }}</span>
         </div>
@@ -154,7 +163,7 @@
             if (d.gemini) {
               let html = "";
               d.gemini.forEach((item) => {
-                html += `<div><b>${item.filename}</b>: ${item.result}</div>`;
+                html += `<div class="mb-3 p-2 bg-white rounded border"><b>${item.filename}</b><br><pre class="text-xs mt-1">${item.result}</pre></div>`;
               });
               document.getElementById("gemini_result").innerHTML = html;
             }
@@ -174,6 +183,21 @@
             }
           });
       };
+      // 测试Gemini
+      const testGeminiBtn = document.getElementById("test_gemini_btn");
+      testGeminiBtn.onclick = function () {
+        document.getElementById("gemini_status").innerText = "测试中...";
+        fetch("/test_gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            document.getElementById("gemini_status").innerText = d.msg;
+          });
+      };
+
       // 上传脚本
       const uploadBtn = document.getElementById("upload_script_btn");
       uploadBtn.onclick = function () {

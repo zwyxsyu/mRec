@@ -2,4 +2,6 @@ Flask
 paramiko
 scp
 requests
-numpy 
+numpy
+google-generativeai
+Pillow 

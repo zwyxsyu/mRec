@@ -69,14 +69,8 @@ def scp_pull_speckle_image(ip, username, password, filename):
         return False, str(e)
 
 def run_gemini_model(image_dir):
-    # TODO: 替换为你的Gemini大模型API调用逻辑
-    # 示例：遍历目录图片，返回分析结果
-    results = []
-    for fname in os.listdir(image_dir):
-        if fname.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp')):
-            # 这里调用Gemini API，返回结果
-            results.append({'filename': fname, 'result': f'Gemini分析结果({fname})'})
-    return results
+    # 使用新的Gemini识别模块
+    return gemini_recognizer.run_gemini_model(image_dir)
 
 def run_speckle_model(image_path):
     # TODO: 替换为你的本地散斑模型推理逻辑
@@ -169,6 +163,15 @@ def upload_script():
     password = data['password']
     ok, msg = upload_script_to_raspberry(ip, username, password)
     return jsonify({'success': ok, 'msg': msg})
+
+@app.route('/test_gemini', methods=['POST'])
+def test_gemini():
+    """测试Gemini API连接"""
+    try:
+        success, msg = gemini_recognizer.test_gemini_connection()
+        return jsonify({'success': success, 'msg': msg})
+    except Exception as e:
+        return jsonify({'success': False, 'msg': f'测试失败: {str(e)}'})
 
 @app.route('/collect_speckle', methods=['GET'])
 def collect_speckle_page():
