@@ -5,3 +5,4 @@ requests
 numpy
 google-generativeai
 Pillow 
+python-dotenv 

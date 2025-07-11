@@ -7,6 +7,8 @@ from flask import Flask, render_template, request, jsonify, send_file, url_for
 import json
 import gemini_recognizer
 import speckle_recognizer
+from dotenv import load_dotenv
+load_dotenv()
 
 # ========== 配置 ========== #
 with open('config.json', 'r') as f:
