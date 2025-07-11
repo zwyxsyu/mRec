@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>材料识别控制台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-gray-50 to-gray-200 min-h-screen flex items-center justify-center p-4"
+  >
+    <div
+      class="bg-white p-8 rounded-3xl shadow-2xl max-w-2xl w-full text-center border border-blue-200"
+    >
+      <h1 class="text-3xl font-extrabold text-blue-700 mb-6">材料识别控制台</h1>
+      <!-- 配置区 -->
+      <div class="mb-6 text-left">
+        <div class="mb-2">
+          <label class="font-medium">本地图片目录（Gemini分析）:</label>
+          <span class="ml-2 text-gray-700">{{ gemini_dir }}</span>
+        </div>
+        <div class="mb-2 flex items-center">
+          <label class="font-medium w-48">Gemini分析图片文件名:</label>
+          <input
+            id="gemini_filename"
+            class="border rounded px-2 py-1 flex-1 min-w-0"
+            placeholder="如 example.jpg"
+          />
+        </div>
+        <div class="mb-2">
+          <label class="font-medium">树莓派图片目录（散斑图片）:</label>
+          <span class="ml-2 text-gray-700">{{ raspberry_dir }}</span>
+        </div>
+        <div class="mb-2 flex flex-col gap-2">
+          <div class="flex items-center">
+            <label class="font-medium w-24">树莓派IP:</label>
+            <input
+              id="rasp_ip"
+              class="border rounded px-2 py-1 flex-1 min-w-0"
+              placeholder="192.168.x.x"
+              value="{{ default_ip }}"
+            />
+          </div>
+          <div class="flex items-center">
+            <label class="font-medium w-24">用户名:</label>
+            <input
+              id="rasp_user"
+              class="border rounded px-2 py-1 flex-1 min-w-0"
+              value="{{ default_user }}"
+            />
+          </div>
+          <div class="flex items-center">
+            <label class="font-medium w-24">密码:</label>
+            <input
+              id="rasp_pwd"
+              type="password"
+              class="border rounded px-2 py-1 flex-1 min-w-0"
+            />
+          </div>
+          <div>
+            <button
+              id="check_net"
+              class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 w-32"
+            >
+              网络检测
+            </button>
+          </div>
+        </div>
+        <div id="net_status" class="mt-2 text-sm"></div>
+      </div>
+      <div class="mb-4">
+        <button
+          id="upload_script_btn"
+          class="px-4 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 w-48"
+        >
+          上传拍照脚本到树莓派
+        </button>
+        <div id="upload_status" class="mt-2 text-sm"></div>
+      </div>
+      <!-- 操作区 -->
+      <div class="mb-6">
+        <button
+          id="start_btn"
+          class="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+        >
+          开始识别
+        </button>
+        <div id="progress" class="mt-4 text-blue-600 font-medium"></div>
+      </div>
+      <!-- 结果区 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="bg-blue-50 p-4 rounded-xl border border-blue-300">
+          <h2 class="text-lg font-bold text-blue-700 mb-2">Gemini识别结果</h2>
+          <div id="gemini_result" class="text-left text-gray-800 text-sm"></div>
+        </div>
+        <div class="bg-green-50 p-4 rounded-xl border border-green-300">
+          <h2 class="text-lg font-bold text-green-700 mb-2">
+            散斑模型识别结果
+          </h2>
+          <div
+            id="speckle_result"
+            class="text-left text-gray-800 text-sm"
+          ></div>
+          <div
+            id="raspberry_log"
+            class="text-left text-gray-500 text-xs mt-2"
+          ></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      // 网络检测
+      const checkBtn = document.getElementById("check_net");
+      checkBtn.onclick = function () {
+        const ip = document.getElementById("rasp_ip").value;
+        const username = document.getElementById("rasp_user").value;
+        const password = document.getElementById("rasp_pwd").value;
+        document.getElementById("net_status").innerText = "检测中...";
+        fetch("/check_raspberry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ip, username, password }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            document.getElementById("net_status").innerText = d.msg;
+          });
+      };
+      // 开始识别
+      const startBtn = document.getElementById("start_btn");
+      startBtn.onclick = function () {
+        const ip = document.getElementById("rasp_ip").value;
+        const username = document.getElementById("rasp_user").value;
+        const password = document.getElementById("rasp_pwd").value;
+        document.getElementById("progress").innerText = "识别中...";
+        document.getElementById("gemini_result").innerText = "";
+        document.getElementById("speckle_result").innerText = "";
+        fetch("/start_recognition", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ip, username, password }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            document.getElementById("progress").innerText = d.success
+              ? "识别完成"
+              : "识别失败";
+            if (d.gemini) {
+              let html = "";
+              d.gemini.forEach((item) => {
+                html += `<div><b>${item.filename}</b>: ${item.result}</div>`;
+              });
+              document.getElementById("gemini_result").innerHTML = html;
+            }
+            if (d.speckle) {
+              if (d.speckle.error) {
+                document.getElementById("speckle_result").innerText =
+                  d.speckle.error;
+              } else {
+                document.getElementById(
+                  "speckle_result"
+                ).innerText = `${d.speckle.filename}: ${d.speckle.result}`;
+              }
+            }
+            if (d.raspberry_log) {
+              document.getElementById("raspberry_log").innerText =
+                d.raspberry_log;
+            }
+          });
+      };
+      // 上传脚本
+      const uploadBtn = document.getElementById("upload_script_btn");
+      uploadBtn.onclick = function () {
+        const ip = document.getElementById("rasp_ip").value;
+        const username = document.getElementById("rasp_user").value;
+        const password = document.getElementById("rasp_pwd").value;
+        document.getElementById("upload_status").innerText = "上传中...";
+        fetch("/upload_script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ip, username, password }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            document.getElementById("upload_status").innerText = d.msg;
+          });
+      };
+    </script>
+  </body>
+</html>

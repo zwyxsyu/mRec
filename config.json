@@ -1,0 +1,7 @@
+{
+  "raspberry_ip": "10.51.110.144",
+  "raspberry_user": "zhaoxiongzhou",
+  "home_dir": "/home/zhaoxiongzhou/sensicut_project",
+  "gemini_image_dir": "./materials",
+  "speckle_image_dir": "./speckle"
+}

@@ -1,0 +1,204 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title id="pageTitle">SensiCut 树莓派控制台</title>
+    <!-- Corrected Tailwind CSS CDN URL - Ensure no extra brackets or markdown formatting -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom pulse animation for loading state */
+      @keyframes pulse-custom {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
+      }
+      .animate-pulse-custom {
+        animation: pulse-custom 1.5s infinite;
+      }
+      /* Spinner animation */
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-left-color: #3b82f6; /* Blue-500 */
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-br from-gray-50 to-gray-200 min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-8"
+  >
+    <div
+      class="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl max-w-2xl w-full text-center border border-blue-200 transform transition-all duration-300 hover:scale-[1.01]"
+    >
+      <div class="flex justify-end mb-4">
+        <button
+          id="langToggle"
+          class="px-3 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors duration-200"
+        >
+          English
+        </button>
+      </div>
+      <h1
+        id="mainTitle"
+        class="text-3xl sm:text-4xl font-extrabold text-blue-700 mb-6 tracking-tight"
+      >
+        SensiCut 树莓派控制台
+      </h1>
+
+      <!-- Camera View Section -->
+      <div
+        class="mb-6 bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700"
+      >
+        <h2
+          id="cameraViewTitle"
+          class="text-xl font-semibold text-white py-3 bg-gray-900"
+        >
+          实时摄像头视图
+        </h2>
+        <!-- Video feed from Raspberry Pi camera -->
+        <img
+          src="/video_feed"
+          class="w-full h-auto object-cover rounded-b-xl"
+          alt="摄像头视图"
+        />
+      </div>
+
+      <!-- Core Identification Result Card -->
+      <div
+        class="mb-6 bg-blue-50 p-4 sm:p-6 rounded-2xl border border-blue-300 shadow-md"
+      >
+        <p
+          id="identifiedMaterialLabel"
+          class="text-gray-700 text-lg sm:text-xl font-medium mb-2"
+        >
+          识别到的材料:
+        </p>
+        <p
+          id="materialName"
+          class="text-4xl sm:text-5xl font-bold text-blue-800 animate-pulse-custom"
+        >
+          N/A
+        </p>
+      </div>
+
+      <!-- Laser Settings Section -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div
+          class="bg-green-50 p-4 rounded-xl border border-green-300 shadow-sm flex flex-col items-center"
+        >
+          <p id="powerLabel" class="text-gray-600 text-sm sm:text-base">
+            建议功率:
+          </p>
+          <p
+            id="powerSetting"
+            class="text-2xl sm:text-3xl font-semibold text-green-700 mt-1"
+          >
+            N/A
+          </p>
+        </div>
+        <div
+          class="bg-yellow-50 p-4 rounded-xl border border-yellow-300 shadow-sm flex flex-col items-center"
+        >
+          <p id="speedLabel" class="text-gray-600 text-sm sm:text-base">
+            建议速度:
+          </p>
+          <p
+            id="speedSetting"
+            class="text-2xl sm:text-3xl font-semibold text-yellow-700 mt-1"
+          >
+            N/A
+          </p>
+        </div>
+      </div>
+
+      <!-- Macro Features Section -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-left">
+        <div
+          class="bg-purple-50 p-4 rounded-xl border border-purple-300 shadow-sm"
+        >
+          <p id="colorLabel" class="text-gray-600 text-sm sm:text-base mb-1">
+            主要颜色:
+          </p>
+          <p
+            id="materialColor"
+            class="text-lg sm:text-xl font-medium text-purple-700"
+          >
+            N/A
+          </p>
+        </div>
+        <div
+          class="bg-indigo-50 p-4 rounded-xl border border-indigo-300 shadow-sm"
+        >
+          <p id="shapeLabel" class="text-gray-600 text-sm sm:text-base mb-1">
+            整体形状:
+          </p>
+          <p
+            id="materialShape"
+            class="text-lg sm:text-xl font-medium text-indigo-700"
+          >
+            N/A
+          </p>
+        </div>
+        <div class="bg-teal-50 p-4 rounded-xl border border-teal-300 shadow-sm">
+          <p id="textureLabel" class="text-gray-600 text-sm sm:text-base mb-1">
+            纹理/图案:
+          </p>
+          <p
+            id="materialTexture"
+            class="text-lg sm:text-xl font-medium text-teal-700"
+          >
+            N/A
+          </p>
+        </div>
+        <div
+          class="bg-orange-50 p-4 rounded-xl border border-orange-300 shadow-sm"
+        >
+          <p
+            id="finishedProductLabel"
+            class="text-gray-600 text-sm sm:text-base mb-1"
+          >
+            是否成品:
+          </p>
+          <p
+            id="isFinishedProduct"
+            class="text-lg sm:text-xl font-medium text-orange-700"
+          >
+            N/A
+          </p>
+        </div>
+      </div>
+
+      <!-- Safety Warning Section -->
+      <div
+        id="safetyWarning"
+        class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg mb-6 shadow-md transition-all duration-300 ease-in-out transform scale-95 opacity-0"
+      >
+        <div class="flex items-center justify-center mb-2">
+          <p id="dangerTitle" class="font-bold text-xl">危险: 有害材料!</p>
+        </div>
+        <p id="safetyMessage" class="mt-2 text-base">
+          请勿雕刻或切割此材料。它可能释放有毒烟雾或损坏设备。
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

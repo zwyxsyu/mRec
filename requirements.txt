@@ -1,0 +1,5 @@
+Flask
+paramiko
+scp
+requests
+numpy 
