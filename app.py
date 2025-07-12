@@ -8,6 +8,8 @@ import json
 import gemini_recognizer
 import speckle_recognizer
 from dotenv import load_dotenv
+import uuid
+from threading import Thread
 load_dotenv()
 
 # ========== 配置 ========== #
@@ -117,6 +119,8 @@ def check_raspberry():
     ok, msg = check_raspberry_connect(ip, username, password)
     return jsonify({'success': ok, 'msg': msg})
 
+gemini_tasks = {}
+
 @app.route('/start_recognition', methods=['POST'])
 def start_recognition():
     data = request.json
@@ -126,36 +130,71 @@ def start_recognition():
     speckle_filename = f'speckle_{int(time.time())}.jpg'
     status = {'gemini': None, 'speckle': None, 'msg': '', 'success': True, 'raspberry_log': ''}
 
+    # Gemini识别（本地图片目录）
+    def do_gemini_progress(task_id, gemini_dir, gemini_filename=None):
+        import gemini_recognizer
+        # 获取要识别的文件列表
+        if gemini_filename:
+            files = [gemini_filename] if os.path.exists(os.path.join(gemini_dir, gemini_filename)) else []
+        else:
+            files = [f for f in os.listdir(gemini_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
+        total = len(files)
+        results = []
+        for idx, fname in enumerate(files):
+            image_path = os.path.join(gemini_dir, fname)
+            start_time = time.time()
+            analysis_result = gemini_recognizer.analyze_material_with_gemini(gemini_recognizer.init_gemini_client(), image_path)
+            elapsed = time.time() - start_time
+            display_result = gemini_recognizer.format_result_for_display(analysis_result)
+            result = {
+                'filename': fname,
+                'result': display_result,
+                'detailed_result': analysis_result,
+                'elapsed_ms': int(elapsed * 1000)
+            }
+            results.append(result)
+            gemini_tasks[task_id] = {
+                'progress': idx + 1,
+                'total': total,
+                'results': results.copy(),
+                'done': False
+            }
+        gemini_tasks[task_id]['done'] = True
+
+    # 生成任务ID
+    task_id = str(uuid.uuid4())
+    gemini_tasks[task_id] = {'progress': 0, 'total': 1, 'results': [], 'done': False}
+
     def do_recognition():
-        # 1. 触发树莓派拍照
         ok, msg = trigger_raspberry_capture(ip, username, password, speckle_filename)
         status['raspberry_log'] = msg
         if not ok:
             status['speckle'] = {'error': msg}
             status['success'] = False
             return
-        # 2. 拉取图片
         ok, local_path = scp_pull_speckle_image(ip, username, password, speckle_filename)
         if not ok:
             status['speckle'] = {'error': local_path}
             status['success'] = False
             return
-        # 3. 散斑模型推理
         status['speckle'] = speckle_recognizer.run_speckle_model(local_path)
 
-    # Gemini识别（本地图片目录）
-    def do_gemini():
-        # 支持前端传递图片文件名
-        gemini_filename = data.get('gemini_filename')
-        status['gemini'] = gemini_recognizer.run_gemini_model(GEMINI_IMAGE_DIR, gemini_filename)
-
-    t1 = threading.Thread(target=do_recognition)
-    t2 = threading.Thread(target=do_gemini)
-    t1.start()
+    # 启动Gemini识别线程
+    t2 = Thread(target=do_gemini_progress, args=(task_id, GEMINI_IMAGE_DIR, data.get('gemini_filename')))
     t2.start()
-    t1.join()
+    # 其余同步执行
+    do_recognition()
     t2.join()
+    status['gemini'] = gemini_tasks[task_id]['results']
+    status['gemini_task_id'] = task_id
     return jsonify(status)
+
+@app.route('/gemini_progress', methods=['GET'])
+def gemini_progress():
+    task_id = request.args.get('task_id')
+    if not task_id or task_id not in gemini_tasks:
+        return jsonify({'error': '无效的任务ID'}), 404
+    return jsonify(gemini_tasks[task_id])
 
 @app.route('/upload_script', methods=['POST'])
 def upload_script():

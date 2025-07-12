@@ -105,8 +105,11 @@
       <!-- 结果区 -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="bg-blue-50 p-4 rounded-xl border border-blue-300">
-          <h2 class="text-lg font-bold text-blue-700 mb-2">Gemini识别结果</h2>
-          <div id="gemini_result" class="text-left text-gray-800 text-sm"></div>
+          <h2 class="text-lg font-bold text-blue-700 mb-2 flex items-center gap-2">
+            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 13h3l7-7a2.828 2.828 0 00-4-4l-7 7v3zm0 0v3a2 2 0 002 2h3"></path></svg>
+            Gemini识别结果
+          </h2>
+          <div id="gemini_result" class="text-left text-gray-800 text-sm max-h-96 overflow-y-auto space-y-4"></div>
         </div>
         <div class="bg-green-50 p-4 rounded-xl border border-green-300">
           <h2 class="text-lg font-bold text-green-700 mb-2">
@@ -126,6 +129,7 @@
     <script>
       // 网络检测
       const checkBtn = document.getElementById("check_net");
+      let progressTimer = null; // 全局唯一
       checkBtn.onclick = function () {
         const ip = document.getElementById("rasp_ip").value;
         const username = document.getElementById("rasp_user").value;
@@ -147,9 +151,11 @@
         const ip = document.getElementById("rasp_ip").value;
         const username = document.getElementById("rasp_user").value;
         const password = document.getElementById("rasp_pwd").value;
-        document.getElementById("progress").innerText = "识别中...";
+        document.getElementById("progress").innerHTML = `<div class='w-full bg-gray-200 rounded-full h-3'><div id='progress_bar' class='bg-blue-500 h-3 rounded-full transition-all' style='width:0%'></div></div><div id='progress_text' class='text-xs text-gray-500 mt-1'>识别进度：0%</div>`;
         document.getElementById("gemini_result").innerText = "";
         document.getElementById("speckle_result").innerText = "";
+        let geminiTaskId = null;
+        if (progressTimer) clearInterval(progressTimer);
         fetch("/start_recognition", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -157,29 +163,59 @@
         })
           .then((r) => r.json())
           .then((d) => {
-            document.getElementById("progress").innerText = d.success
-              ? "识别完成"
-              : "识别失败";
-            if (d.gemini) {
-              let html = "";
-              d.gemini.forEach((item) => {
-                html += `<div class="mb-3 p-2 bg-white rounded border"><b>${item.filename}</b><br><pre class="text-xs mt-1">${item.result}</pre></div>`;
-              });
-              document.getElementById("gemini_result").innerHTML = html;
+            if (d.gemini_task_id) {
+              geminiTaskId = d.gemini_task_id;
+              progressTimer = setInterval(() => {
+                fetch(`/gemini_progress?task_id=${geminiTaskId}`)
+                  .then((r) => r.json())
+                  .then((progressData) => {
+                    if (progressData.error) return;
+                    let percent = progressData.total > 0 ? Math.round((progressData.progress / progressData.total) * 100) : 0;
+                    document.getElementById("progress_bar").style.width = percent + "%";
+                    document.getElementById("progress_text").innerText = `识别进度：${percent}%`;
+                    let html = "";
+                    (progressData.results || []).forEach((item) => {
+                      let detail = item.detailed_result || {};
+                      html += `
+                        <div class="shadow-md hover:shadow-lg transition-shadow mb-3 p-4 bg-white rounded-xl border border-blue-100">
+                          <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 13h3l7-7a2.828 2.828 0 00-4-4l-7 7v3zm0 0v3a2 2 0 002 2h3"></path></svg>
+                            <span class="font-bold text-blue-700 text-base">${item.filename}</span>
+                            <span class="ml-auto text-xs text-gray-400">耗时: ${item.elapsed_ms || '-'} ms</span>
+                          </div>
+                          <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                            <div><span class="font-medium text-gray-600">材料类型：</span>${detail.material_type || "-"}</div>
+                            <div><span class="font-medium text-gray-600">材料名称：</span>${detail.material_name || "-"}</div>
+                            <div><span class="font-medium text-gray-600">置信度：</span>${detail.confidence !== undefined ? Number(detail.confidence).toFixed(2) : "-"}</div>
+                            <div><span class="font-medium text-gray-600">颜色：</span>${detail.properties?.color || "-"}</div>
+                            <div><span class="font-medium text-gray-600">纹理：</span>${detail.properties?.texture || "-"}</div>
+                            <div><span class="font-medium text-gray-600">硬度：</span>${detail.properties?.hardness || "-"}</div>
+                            <div><span class="font-medium text-gray-600">建议功率：</span>${detail.cutting_parameters?.power || "-"}</div>
+                            <div><span class="font-medium text-gray-600">建议速度：</span>${detail.cutting_parameters?.speed || "-"}</div>
+                          </div>
+                          <div class="mt-2 text-xs text-gray-500"><span class="font-medium text-gray-600">安全提示：</span>${detail.safety_notes || "-"}</div>
+                          <div class="mt-1 text-xs text-gray-400">${detail.description || ""}</div>
+                        </div>
+                      `;
+                    });
+                    document.getElementById("gemini_result").innerHTML = html;
+                    if (progressData.done) {
+                      clearInterval(progressTimer);
+                      progressTimer = null;
+                      document.getElementById("progress_text").innerText = `识别进度：100%（已完成）`;
+                    }
+                  });
+              }, 800);
             }
             if (d.speckle) {
               if (d.speckle.error) {
-                document.getElementById("speckle_result").innerText =
-                  d.speckle.error;
+                document.getElementById("speckle_result").innerText = d.speckle.error;
               } else {
-                document.getElementById(
-                  "speckle_result"
-                ).innerText = `${d.speckle.filename}: ${d.speckle.result}`;
+                document.getElementById("speckle_result").innerText = `${d.speckle.filename}: ${d.speckle.result}`;
               }
             }
             if (d.raspberry_log) {
-              document.getElementById("raspberry_log").innerText =
-                d.raspberry_log;
+              document.getElementById("raspberry_log").innerText = d.raspberry_log;
             }
           });
       };

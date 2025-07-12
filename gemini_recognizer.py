@@ -4,41 +4,45 @@ import json
 import google.generativeai as genai
 from PIL import Image
 import logging
+import time
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Gemini API配置
+API_KEYS = [
+    "AIzaSyAH8vH2cFfJUMpFo14Hox0xF_zCxRaJaF4",
+    "AIzaSyB767Wx05W_fuLco-0QIiduk-3IYpX9CAQ",
+    "AIzaSyBdcCn7KZwKiE9tXsxVPPvJfoAwalh80fQ",
+    "AIzaSyBiqxRWjy2FhUdLdY_GapW2h5VCTLz2R5w",
+    "AIzaSyBw5HWst_uBgY-v1C52eTMawKP8Bvi1SrE",
+    "AIzaSyBO-R7HFQthZYbs0sGTLUyNI7H3C8CYAaU",
+    "AIzaSyCeJeZrXU3bIztBcKBZYmZ9EEm6cQV1aXs"
+]
+api_key_index = 0
+
 def get_gemini_config():
-    """从配置文件或环境变量获取Gemini配置"""
-    # 首先尝试从配置文件读取
-    try:
-        with open('config.json', 'r', encoding='utf-8') as f:
-            config = json.load(f)
-            api_key = config.get('gemini_api_key', '')
-            model = config.get('gemini_model', 'gemini-pro-vision')
-            if api_key:
-                return api_key, model
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        pass
-    
-    # 如果配置文件没有，则从环境变量读取
-    api_key = os.getenv('GEMINI_API_KEY', '')
-    model = os.getenv('GEMINI_MODEL', 'gemini-pro-vision')
+    """从API_KEYS轮换获取Gemini配置"""
+    global api_key_index
+    api_key = API_KEYS[api_key_index]
+    model = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
     return api_key, model
 
 GEMINI_API_KEY, GEMINI_MODEL = get_gemini_config()
 
 # 材料识别提示词模板
 MATERIAL_ANALYSIS_PROMPT = """
-你是一个专业的智能雕刻耗材识别专家。请分析这张图片中的材料，并提供详细的识别结果。
+你是一个专业的智能雕刻耗材识别专家。请分析这张图片中的物体，并提供详细的识别结果。
+
+请特别关注物体的**形状和类型**，例如“玻璃材质的杯子”、“金属钥匙扣”、“木质圆盘”等。
 
 请按照以下格式返回JSON格式的结果：
 
 {
-    "material_type": "材料类型（如：木材、亚克力、金属、织物等）",
-    "material_name": "具体材料名称（如：红橡木、黑色亚克力、碳钢等）",
+    "material_type": "材料类型（如：木材、亚克力、金属、玻璃、织物等）",
+    "material_name": "具体材料名称（如：红橡木、黑色亚克力、碳钢、玻璃等）",
+    "object_shape": "物体的形状和类型描述（如：圆盘、杯子、钥匙扣、板材、棒状等）",
     "confidence": "置信度（0-1之间的数值）",
     "properties": {
         "color": "颜色描述",
@@ -57,25 +61,35 @@ MATERIAL_ANALYSIS_PROMPT = """
 }
 
 注意事项：
-1. 如果无法确定具体材料，请提供最可能的选项和置信度
+1. 如果无法确定具体材料或形状，请提供最可能的选项和置信度
 2. 切割参数仅供参考，实际使用时需要根据设备调整
-3. 重点关注材料的颜色、纹理、反光特性等视觉特征
-4. 对于复合材料，请识别主要成分
+3. 重点关注材料的颜色、纹理、反光特性、形状等视觉特征
+4. 对于复合材料或复杂物体，请识别主要成分和主要形态
+5. 形状描述要简明准确，如“玻璃杯”、“金属钥匙扣”、“木质圆盘”等
 """
 
 def init_gemini_client():
-    """初始化Gemini客户端"""
-    if not GEMINI_API_KEY:
-        logger.error("未设置GEMINI_API_KEY环境变量")
-        return None
-    
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL)
-        return model
-    except Exception as e:
-        logger.error(f"初始化Gemini客户端失败: {e}")
-        return None
+    """初始化Gemini客户端，支持API Key轮换"""
+    global api_key_index
+    for _ in range(len(API_KEYS)):
+        api_key, model = get_gemini_config()
+        if not api_key:
+            logger.error("未设置GEMINI_API_KEY环境变量")
+            return None
+        try:
+            genai.configure(api_key=api_key)
+            model_obj = genai.GenerativeModel(model)
+            return model_obj
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg or "quota" in msg or "exceeded" in msg:
+                logger.warning(f"API Key {api_key} 配额超限，尝试下一个Key...")
+                api_key_index = (api_key_index + 1) % len(API_KEYS)
+                continue
+            logger.error(f"初始化Gemini客户端失败: {e}")
+            return None
+    logger.error("所有API Key均已超限或不可用")
+    return None
 
 def encode_image_to_base64(image_path):
     """将图片编码为base64格式"""
@@ -193,22 +207,21 @@ def run_gemini_model(image_dir, filename=None):
     for fname in files:
         image_path = os.path.join(image_dir, fname)
         logger.info(f"正在分析图片: {fname}")
-        
+        start_time = time.time()
         # 使用Gemini分析材料
         analysis_result = analyze_material_with_gemini(model, image_path)
-        
+        elapsed = time.time() - start_time
         # 格式化显示结果
         display_result = format_result_for_display(analysis_result)
-        
         # 保存详细结果
         result = {
             'filename': fname,
             'result': display_result,
-            'detailed_result': analysis_result
+            'detailed_result': analysis_result,
+            'elapsed_ms': int(elapsed * 1000)
         }
-        
         results.append(result)
-        logger.info(f"图片 {fname} 分析完成")
+        logger.info(f"图片 {fname} 分析完成, 耗时 {elapsed:.2f}s")
     
     return results
 
