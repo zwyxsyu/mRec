@@ -137,7 +137,13 @@ def start_recognition():
         if gemini_filename:
             files = [gemini_filename] if os.path.exists(os.path.join(gemini_dir, gemini_filename)) else []
         else:
-            files = [f for f in os.listdir(gemini_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
+            # 自动选取目录下创建时间最新的图片
+            all_files = [f for f in os.listdir(gemini_dir) if f.lower().endswith((".jpg", ".jpeg", ".png", ".bmp"))]
+            if all_files:
+                latest_file = max(all_files, key=lambda f: os.path.getctime(os.path.join(gemini_dir, f)))
+                files = [latest_file]
+            else:
+                files = []
         total = len(files)
         results = []
         for idx, fname in enumerate(files):
@@ -183,10 +189,26 @@ def start_recognition():
     t2 = Thread(target=do_gemini_progress, args=(task_id, GEMINI_IMAGE_DIR, data.get('gemini_filename')))
     t2.start()
     # 其余同步执行
+    start_time = time.time()
     do_recognition()
     t2.join()
+    total_elapsed = int((time.time() - start_time) * 1000)
     status['gemini'] = gemini_tasks[task_id]['results']
     status['gemini_task_id'] = task_id
+
+    # TODO: 综合Gemini和散斑结果，后续实现融合逻辑
+    # 目前直接返回示例HTML，便于前端调试
+    status['final_result'] = '''<div class="flex items-center gap-2 mb-2">
+        <span class="font-bold text-yellow-700 text-base">总耗时: 1234 ms</span>
+    </div>
+    <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <div><span class="font-medium text-gray-600">材料类型：</span>错误</div>
+        <div><span class="font-medium text-gray-600">材料名称：</span>分析失败</div>
+        <div><span class="font-medium text-gray-600">置信度：</span>0.00</div>
+        <div><span class="font-medium text-gray-600">颜色：</span>-</div>
+        <div><span class="font-medium text-gray-600">纹理：</span>-</div>
+        <div><span class="font-medium text-gray-600">硬度：</span>-</div>
+    </div>'''
     return jsonify(status)
 
 @app.route('/gemini_progress', methods=['GET'])

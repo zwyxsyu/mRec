@@ -18,7 +18,9 @@ API_KEYS = [
     "AIzaSyBiqxRWjy2FhUdLdY_GapW2h5VCTLz2R5w",
     "AIzaSyBw5HWst_uBgY-v1C52eTMawKP8Bvi1SrE",
     "AIzaSyBO-R7HFQthZYbs0sGTLUyNI7H3C8CYAaU",
-    "AIzaSyCeJeZrXU3bIztBcKBZYmZ9EEm6cQV1aXs"
+    "AIzaSyCeJeZrXU3bIztBcKBZYmZ9EEm6cQV1aXs",
+    "AIzaSyAk28t9y-nzL7NQ2ox9OBzFdCuOg4TCXVs",
+    "AIzaSyBd6TaWD1JzyVEs4nWslXBbL66nR3VOFnY"
 ]
 api_key_index = 0
 
