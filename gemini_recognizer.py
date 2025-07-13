@@ -112,10 +112,18 @@ def analyze_material_with_gemini(model, image_path):
         prompt = MATERIAL_ANALYSIS_PROMPT
         
         # 调用Gemini API
-        response = model.generate_content([prompt, image])
-        
-        # 解析响应
-        response_text = response.text
+        try:
+            response = model.generate_content([prompt, image])
+            response_text = response.text
+        except Exception as e:
+            if "429" in str(e) or "quota" in str(e) or "exceeded" in str(e):
+                global api_key_index
+                api_key_index = (api_key_index + 1) % len(API_KEYS)
+                logger.warning(f"配额超限，尝试切换到下一个Key...")
+                new_model = init_gemini_client()
+                if new_model:
+                    return analyze_material_with_gemini(new_model, image_path)
+            raise e
         
         # 尝试提取JSON部分
         try:

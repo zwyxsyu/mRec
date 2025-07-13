@@ -210,16 +210,24 @@ def start_recognition():
         gemini_result = status['gemini'][0]['detailed_result'] if status['gemini'] and status['gemini'][0].get('detailed_result') else {}
         speckle_result = status['speckle'] if status['speckle'] and isinstance(status['speckle'], dict) else {}
         
+        # 获取颜色（从Gemini结果）
+        color = gemini_result.get('properties', {}).get('color', '-')
+        # 获取形状（从Gemini结果的object_shape字段）
+        shape = gemini_result.get('object_shape', '-')
+        # 材质（从散斑结果）
+        material = speckle_result.get('result', '-').replace('类别: ', '')
+        # 置信度（从散斑结果）
+        confidence = speckle_result.get('confidence', 0.0)
+        confidence_display = f"{confidence * 100:.1f}%" if confidence else "-"
+        
         status['final_result'] = f'''<div class="flex items-center gap-2 mb-2">
             <span class="font-bold text-yellow-700 text-base">总耗时: {max_elapsed} ms</span>
         </div>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div><span class="font-medium text-gray-600">材料类型：</span>{gemini_result.get('material_type', '未知')}</div>
-            <div><span class="font-medium text-gray-600">材料名称：</span>{gemini_result.get('material_name', '未知')}</div>
-            <div><span class="font-medium text-gray-600">置信度：</span>{gemini_result.get('confidence', 0.0):.2f}</div>
-            <div><span class="font-medium text-gray-600">颜色：</span>{gemini_result.get('properties', {}).get('color', '-')}</div>
-            <div><span class="font-medium text-gray-600">纹理：</span>{gemini_result.get('properties', {}).get('texture', '-')}</div>
-            <div><span class="font-medium text-gray-600">硬度：</span>{gemini_result.get('properties', {}).get('hardness', '-')}</div>
+            <div><span class="font-medium text-gray-600">颜色：</span>{color}</div>
+            <div><span class="font-medium text-gray-600">形状：</span>{shape}</div>
+            <div><span class="font-medium text-gray-600">材质：</span>{material}</div>
+            <div><span class="font-medium text-gray-600">置信度：</span>{confidence_display}</div>
         </div>'''
     else:
         status['final_result'] = '''<div class="text-red-500">识别失败，请重试</div>'''
