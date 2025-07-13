@@ -196,19 +196,30 @@ def start_recognition():
     status['gemini'] = gemini_tasks[task_id]['results']
     status['gemini_task_id'] = task_id
 
-    # TODO: 综合Gemini和散斑结果，后续实现融合逻辑
-    # 目前直接返回示例HTML，便于前端调试
-    status['final_result'] = '''<div class="flex items-center gap-2 mb-2">
-        <span class="font-bold text-yellow-700 text-base">总耗时: 1234 ms</span>
-    </div>
-    <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        <div><span class="font-medium text-gray-600">材料类型：</span>错误</div>
-        <div><span class="font-medium text-gray-600">材料名称：</span>分析失败</div>
-        <div><span class="font-medium text-gray-600">置信度：</span>0.00</div>
-        <div><span class="font-medium text-gray-600">颜色：</span>-</div>
-        <div><span class="font-medium text-gray-600">纹理：</span>-</div>
-        <div><span class="font-medium text-gray-600">硬度：</span>-</div>
-    </div>'''
+    # 计算总耗时（取两者中的最大值）
+    gemini_elapsed = max([result.get('elapsed_ms', 0) for result in status['gemini']]) if status['gemini'] else 0
+    speckle_elapsed = status['speckle'].get('elapsed_ms', 0) if status['speckle'] and isinstance(status['speckle'], dict) else 0
+    max_elapsed = max(gemini_elapsed, speckle_elapsed)
+
+    # 生成最终结果HTML
+    if status['success']:
+        gemini_result = status['gemini'][0]['detailed_result'] if status['gemini'] and status['gemini'][0].get('detailed_result') else {}
+        speckle_result = status['speckle'] if status['speckle'] and isinstance(status['speckle'], dict) else {}
+        
+        status['final_result'] = f'''<div class="flex items-center gap-2 mb-2">
+            <span class="font-bold text-yellow-700 text-base">总耗时: {max_elapsed} ms</span>
+        </div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <div><span class="font-medium text-gray-600">材料类型：</span>{gemini_result.get('material_type', '未知')}</div>
+            <div><span class="font-medium text-gray-600">材料名称：</span>{gemini_result.get('material_name', '未知')}</div>
+            <div><span class="font-medium text-gray-600">置信度：</span>{gemini_result.get('confidence', 0.0):.2f}</div>
+            <div><span class="font-medium text-gray-600">颜色：</span>{gemini_result.get('properties', {}).get('color', '-')}</div>
+            <div><span class="font-medium text-gray-600">纹理：</span>{gemini_result.get('properties', {}).get('texture', '-')}</div>
+            <div><span class="font-medium text-gray-600">硬度：</span>{gemini_result.get('properties', {}).get('hardness', '-')}</div>
+        </div>'''
+    else:
+        status['final_result'] = '''<div class="text-red-500">识别失败，请重试</div>'''
+
     return jsonify(status)
 
 @app.route('/gemini_progress', methods=['GET'])
@@ -289,6 +300,10 @@ def collect_speckle():
             return jsonify({'success': False, 'msg': f'采集失败(exit {exit_status}):\n{out}\n{err}'})
     except Exception as e:
         return jsonify({'success': False, 'msg': f'采集失败: {e}'})
+
+@app.route('/speckle_image/<path:filename>')
+def speckle_image(filename):
+    return send_file(os.path.join(SPECKLE_IMAGE_DIR, filename))
 
 if __name__ == '__main__':
     os.makedirs(GEMINI_IMAGE_DIR, exist_ok=True)
