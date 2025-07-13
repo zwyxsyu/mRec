@@ -6,7 +6,7 @@ def run_speckle_model(image_path):
     # 散斑AI模型推理
     try:
         start_time = time.time()
-        predictor = SensiCutPredictor(model_path='sensicut/speckle_resnet50_fastai.pkl')
+        predictor = SensiCutPredictor(model_path='sensicut/speckle_category_resnet50_fastai_p15_d0.0001.pkl')
         if os.path.exists(image_path):
             result = predictor.predict_single_image(image_path, show_image=False, top_k=1)
             elapsed = int((time.time() - start_time) * 1000)  # 转换为毫秒
