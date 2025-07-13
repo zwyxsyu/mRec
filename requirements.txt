@@ -1,6 +1,6 @@
 flask
 torch==2.7.1
-fastai==2.8.2
+fastai==2.8.12
 matplotlib
 pillow
 scikit-learn
