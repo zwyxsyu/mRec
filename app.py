@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import uuid
 from threading import Thread
 load_dotenv()
+from datetime import datetime
 
 # ========== 配置 ========== #
 with open('config.json', 'r') as f:
@@ -114,8 +115,11 @@ def index():
 def check_raspberry():
     data = request.json
     ip = data['ip']
+    print(f"ip: {ip}")
     username = data['username']
     password = data['password']
+    import socket
+    print('解析IP:', ip, '->', socket.gethostbyname(ip))
     ok, msg = check_raspberry_connect(ip, username, password)
     return jsonify({'success': ok, 'msg': msg})
 
@@ -254,30 +258,51 @@ def collect_speckle_page():
         default_user=RASPBERRY_DEFAULT_USER
     )
 
+@app.route('/list_speckle_dirs')
+def list_speckle_dirs():
+    dirs = []
+    if os.path.exists(SPECKLE_IMAGE_DIR):
+        for d in os.listdir(SPECKLE_IMAGE_DIR):
+            if os.path.isdir(os.path.join(SPECKLE_IMAGE_DIR, d)):
+                dirs.append(d)
+    dirs.sort(reverse=True)
+    return jsonify({'dirs': dirs})
+
+@app.route('/create_speckle_dir', methods=['POST'])
+def create_speckle_dir():
+    data = request.json
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'success': False, 'msg': '目录名称不能为空'})
+    now = datetime.now().strftime('%Y.%m.%d-%H.%M.%S')
+    dir_name = f'{now}-{name}'
+    path = os.path.join(SPECKLE_IMAGE_DIR, dir_name)
+    try:
+        os.makedirs(path, exist_ok=False)
+        return jsonify({'success': True, 'msg': f'目录创建成功: {dir_name}', 'dir': dir_name})
+    except FileExistsError:
+        return jsonify({'success': False, 'msg': '目录已存在', 'dir': dir_name})
+    except Exception as e:
+        return jsonify({'success': False, 'msg': f'创建失败: {e}'})
+
 @app.route('/collect_speckle', methods=['POST'])
 def collect_speckle():
     data = request.json
     subdir = data.get('subdir', '').strip()
+    ip = data.get('ip') or RASPBERRY_DEFAULT_IP
+    username = data.get('username') or RASPBERRY_DEFAULT_USER
+    password = data.get('password', '')
     if not subdir:
         return jsonify({'success': False, 'msg': '子目录名称不能为空'})
-    # 1. 在PC端创建子目录
     pc_subdir = os.path.join(SPECKLE_IMAGE_DIR, subdir)
     os.makedirs(pc_subdir, exist_ok=True)
-    # 2. 在树莓派端创建同名目录并采集图片
-    # 这里只采集一张图片为例，可扩展为多张
-    ip = RASPBERRY_DEFAULT_IP
-    username = RASPBERRY_DEFAULT_USER
-    password = data.get('password', '')  # 可扩展为前端输入
     remote_subdir = f'{HOME_DIR}/speckle/{subdir}'
-    # 创建目录+采集
     try:
         import paramiko
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(ip, username=username, password=password, timeout=5)
-        # 创建目录
         ssh.exec_command(f'mkdir -p {remote_subdir}')
-        # 拍照
         import time
         fname = f'speckle_{int(time.time())}.jpg'
         cmd = f'cd {os.path.dirname(RASPBERRY_CAPTURE_SCRIPT)} && source venv/bin/activate && python3 {RASPBERRY_CAPTURE_SCRIPT} {subdir}/{fname}'
@@ -286,7 +311,6 @@ def collect_speckle():
         out = stdout.read().decode()
         err = stderr.read().decode()
         ssh.close()
-        # 拉取图片到本地子目录
         from scp import SCPClient
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -294,12 +318,13 @@ def collect_speckle():
         with SCPClient(ssh.get_transport()) as scp:
             scp.get(f'{remote_subdir}/{fname}', os.path.join(pc_subdir, fname))
         ssh.close()
+        raspberry_log = f'{out}\n{err}'
         if exit_status == 0:
-            return jsonify({'success': True, 'msg': f'采集完成，图片已保存到{subdir}。\n{out}'})
+            return jsonify({'success': True, 'msg': f'采集完成，图片已保存到{subdir}。', 'raspberry_log': raspberry_log})
         else:
-            return jsonify({'success': False, 'msg': f'采集失败(exit {exit_status}):\n{out}\n{err}'})
+            return jsonify({'success': False, 'msg': f'采集失败(exit {exit_status})', 'raspberry_log': raspberry_log})
     except Exception as e:
-        return jsonify({'success': False, 'msg': f'采集失败: {e}'})
+        return jsonify({'success': False, 'msg': f'采集失败: {e}', 'raspberry_log': str(e)})
 
 @app.route('/speckle_image/<path:filename>')
 def speckle_image(filename):
