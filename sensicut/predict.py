@@ -49,7 +49,7 @@ class SensiCutPredictor:
                 self.class_names = self.learner.dls.vocab
                 print(f"使用模型词汇表: {len(self.class_names)} 个类别")
 
-    def predict_single_image(self, image_path, show_image=True, top_k=3):
+    def predict_single_image(self, image_path, show_image=True, top_k=3, target_size=(256, 256)):
         """
         预测单张图片
 
@@ -64,6 +64,9 @@ class SensiCutPredictor:
         try:
             # 加载图片
             image = Image.open(image_path).convert('RGB')
+
+            # 调整图片大小
+            image = image.resize(target_size, Image.Resampling.LANCZOS)
 
             # 使用模型预测
             pred, pred_idx, probs = self.learner.predict(image_path)
