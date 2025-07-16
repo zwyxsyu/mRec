@@ -12,15 +12,16 @@ logger = logging.getLogger(__name__)
 
 # Gemini API配置
 API_KEYS = [
-    "AIzaSyAH8vH2cFfJUMpFo14Hox0xF_zCxRaJaF4",
-    "AIzaSyB767Wx05W_fuLco-0QIiduk-3IYpX9CAQ",
-    "AIzaSyBdcCn7KZwKiE9tXsxVPPvJfoAwalh80fQ",
-    "AIzaSyBiqxRWjy2FhUdLdY_GapW2h5VCTLz2R5w",
-    "AIzaSyBw5HWst_uBgY-v1C52eTMawKP8Bvi1SrE",
-    "AIzaSyBO-R7HFQthZYbs0sGTLUyNI7H3C8CYAaU",
-    "AIzaSyCeJeZrXU3bIztBcKBZYmZ9EEm6cQV1aXs",
-    "AIzaSyAk28t9y-nzL7NQ2ox9OBzFdCuOg4TCXVs",
-    "AIzaSyBd6TaWD1JzyVEs4nWslXBbL66nR3VOFnY"
+    "AIzaSyA52CjbiVEYSnLbam7phEQkvnT7sgvlKhM"
+    # "AIzaSyAH8vH2cFfJUMpFo14Hox0xF_zCxRaJaF4",
+    # "AIzaSyB767Wx05W_fuLco-0QIiduk-3IYpX9CAQ",
+    # "AIzaSyBdcCn7KZwKiE9tXsxVPPvJfoAwalh80fQ",
+    # "AIzaSyBiqxRWjy2FhUdLdY_GapW2h5VCTLz2R5w",
+    # "AIzaSyBw5HWst_uBgY-v1C52eTMawKP8Bvi1SrE",
+    # "AIzaSyBO-R7HFQthZYbs0sGTLUyNI7H3C8CYAaU",
+    # "AIzaSyCeJeZrXU3bIztBcKBZYmZ9EEm6cQV1aXs",
+    # "AIzaSyAk28t9y-nzL7NQ2ox9OBzFdCuOg4TCXVs",
+    # "AIzaSyBd6TaWD1JzyVEs4nWslXBbL66nR3VOFnY"
 ]
 api_key_index = 0
 
